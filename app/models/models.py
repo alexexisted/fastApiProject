@@ -27,5 +27,9 @@ class UserCreate(BaseModel):
     is_subscribed: Union[bool, None]
 
 
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
 
 

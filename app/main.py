@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Form, File, UploadFile
+import random
+
+from fastapi import FastAPI, Form, File, UploadFile, Response, Cookie
 from fastapi.responses import FileResponse
 from typing import Annotated
 
-from .models.models import User, Identification, Feedback, UserCreate
+from .models.models import User, Identification, Feedback, UserCreate, UserLogin
 
 app = FastAPI()
 
@@ -157,6 +159,38 @@ async def create_file(file: Annotated[bytes, File()]):
 @app.post("/uploadfile/")
 async def create_upload_file(file: UploadFile):
     return {"filename": file.filename}
+
+
+logindb = {
+    "username": "alexa",
+    "password": "12345678"
+}
+
+fake_login_db: list[UserLogin] = [UserLogin(**logindb)]
+
+sessions: dict = {}
+
+
+@app.post("/login")
+async def login(user: UserLogin, response: Response):
+    for usr in fake_login_db:
+        if usr.username == user.username and usr.password == user.password:
+            session_token = str(random.randint(100, 999))
+            sessions[session_token] = user
+            response.set_cookie("session_token", value=session_token, httponly=True)
+
+            return {"message": "Cookie installed"}
+    return {"message": "invalid input data"}
+
+
+@app.get("/user")
+async def user_info(session_token = Cookie()):
+    user = sessions.get(session_token)
+    if user:
+        return user.dict()
+    return {"message": "Unauthorized"}
+
+
 
 
 
