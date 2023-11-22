@@ -134,8 +134,8 @@ def get_users():
 def get_auth():
     user_data = {
         "login": "alexa",
-        "email": "a.assjones@list.ru",
-        "password": "Gotoasspls1!"
+        "email": "a.lexa@gg.com",
+        "password": "12345psswd!"
     }
 
     get_user_data = Identification(**user_data)
