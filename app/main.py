@@ -1,12 +1,83 @@
 import random
-
-from fastapi import FastAPI, Form, File, UploadFile, Response, Cookie
+import jwt
+from fastapi import FastAPI, Form, File, UploadFile, Response, Cookie, Depends, status, HTTPException
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import FileResponse
 from typing import Annotated
 
 from .models.models import User, Identification, Feedback, UserCreate, UserLogin
 
 app = FastAPI()
+security = HTTPBasic()
+
+SECRET_KEY = "mysecretkey" #just an example of secret key
+
+ALGORITHM = "HS256" #way of encryption
+
+USERS_DATA = [
+    {"username": "admin", "password": "adminpass"}
+]
+
+
+def create_jwt_token(data: dict):
+    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM) #the process of encoding
+
+
+def get_user_from_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]) #decoding tokin
+        return payload.get("sub")
+    except jwt.ExpiredSignatureError:
+        pass    #логика истечения срока действия токена
+    except jwt.InvalidTokenError:
+        pass    #логика обработки ошибки декодирования токена
+
+
+def get_user(username: str):
+    for user in USERS_DATA:
+        if user.get("username") == username:
+            return user
+    return None
+
+
+token = create_jwt_token({"sub": "admin"})
+
+print(token)
+
+username = get_user_from_token(token)
+
+print(username)
+
+current_user = get_user(username)
+
+print(current_user)
+
+
+#basic authentication start block
+USER_DATA = [
+    UserLogin(**{"username": "user1", "password": "pass1"}),
+    UserLogin(**{"username": "user2", "password": "12345"})
+]
+
+
+def authenticate_user(credentials: HTTPBasicCredentials = Depends(security)):
+    user = get_user_from_db(credentials.username)
+    if user is None or user.password != credentials.password:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
+    return user
+
+
+def get_user_from_db(username: str):
+    for user in USER_DATA:
+        if user.username == username:
+            return user
+    return None
+
+
+@app.get("/protected_resourse")
+async def get_protected_resource(user: UserLogin = Depends(authenticate_user)):
+    return {"message": "You have access to the protected resource!", "user_info": user}
+#basic authentication final block
 
 db = []
 
