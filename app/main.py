@@ -1,3 +1,4 @@
+import datetime
 import random
 import jwt
 from fastapi import FastAPI, Form, File, UploadFile, Response, Cookie, Depends, status, HTTPException
@@ -12,72 +13,71 @@ security = HTTPBasic()
 
 SECRET_KEY = "mysecretkey" #just an example of secret key
 
-ALGORITHM = "HS256" #way of encryption
+ALGORITHM = "HS256" #algorythm of hesh
 
 USERS_DATA = [
     {"username": "admin", "password": "adminpass"}
 ]
+
+USER_DATA = [
+      UserLogin(**{"username": "user1", "password": "pass1"}),
+      UserLogin(**{"username": "user2", "password": "12345"})
+]
+
+
+# JWT
+
+def get_user(username: str, password: str) -> bool:
+    for user in USER_DATA:
+        if username == user.username and password == user.password:
+            return True
+    return False
 
 
 def create_jwt_token(data: dict):
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM) #the process of encoding
 
 
-def get_user_from_token(token: str):
+def get_user_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]) #decoding tokin
-        return payload.get("sub")
+        return payload.get("sub") #полезная нагрузка
+        # sub - тема токена
+        # iss - определяет приложение из которого отправляется токен
+        # exp - время жизни токена
     except jwt.ExpiredSignatureError:
-        pass    #логика истечения срока действия токена
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Token was expired',
+            headers={"WWW-Authenticate": "Bearer"},
+        )    #логика истечения срока действия токена
     except jwt.InvalidTokenError:
-        pass    #логика обработки ошибки декодирования токена
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail='Invalid Token',
+            headers={"WWW-Authenticate": "Bearer"},
+        )  #логика обработки ошибки декодирования токена
 
 
-def get_user(username: str):
-    for user in USERS_DATA:
-        if user.get("username") == username:
-            return user
-    return None
+@app.post("/login")
+async def get_the_login(user: UserLogin = Depends()):
+    authenticate = get_user(user.username, user.password)
+    if authenticate:
+        return {"access token": create_jwt_token(
+            {"sub": user.username}
+        )}
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail='Invalid username or password',
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
-token = create_jwt_token({"sub": "admin"})
+@app.get("/protected_resource")
+async def protected(token: str):
+    get_user_token(token)
+    return {"message": "protected!"}
 
-print(token)
-
-username = get_user_from_token(token)
-
-print(username)
-
-current_user = get_user(username)
-
-print(current_user)
-
-
-#basic authentication start block
-USER_DATA = [
-    UserLogin(**{"username": "user1", "password": "pass1"}),
-    UserLogin(**{"username": "user2", "password": "12345"})
-]
-
-
-def authenticate_user(credentials: HTTPBasicCredentials = Depends(security)):
-    user = get_user_from_db(credentials.username)
-    if user is None or user.password != credentials.password:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
-    return user
-
-
-def get_user_from_db(username: str):
-    for user in USER_DATA:
-        if user.username == username:
-            return user
-    return None
-
-
-@app.get("/protected_resourse")
-async def get_protected_resource(user: UserLogin = Depends(authenticate_user)):
-    return {"message": "You have access to the protected resource!", "user_info": user}
-#basic authentication final block
 
 db = []
 
@@ -242,7 +242,7 @@ fake_login_db: list[UserLogin] = [UserLogin(**logindb)]
 sessions: dict = {}
 
 
-@app.post("/login")
+@app.post("/login_old")
 async def login(user: UserLogin, response: Response):
     for usr in fake_login_db:
         if usr.username == user.username and usr.password == user.password:
@@ -262,6 +262,32 @@ async def user_info(session_token = Cookie()):
     return {"message": "Unauthorized"}
 
 
+#
+# #basic authentication start block
+# USER_DATA = [
+#     UserLogin(**{"username": "user1", "password": "pass1"}),
+#     UserLogin(**{"username": "user2", "password": "12345"})
+# ]
+#
+#
+# def authenticate_user(credentials: HTTPBasicCredentials = Depends(security)):
+#     user = get_user_from_db(credentials.username)
+#     if user is None or user.password != credentials.password:
+#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
+#     return user
+#
+#
+# def get_user_from_db(username: str):
+#     for user in USER_DATA:
+#         if user.username == username:
+#             return user
+#     return None
+#
+#
+# @app.get("/protected_resourse")
+# async def get_protected_resource(user: UserLogin = Depends(authenticate_user)):
+#     return {"message": "You have access to the protected resource!", "user_info": user}
+# #basic authentication final block
 
 
 
